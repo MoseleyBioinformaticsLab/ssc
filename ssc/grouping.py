@@ -285,9 +285,10 @@ class DBSCAN(object):
 
 
     def _to_json(self):
-        """Save list clusters into JSON formatted string.
+        """Save list of clusters into JSON formatted string.
 
         :return:
+        :rtype: str
         """
         clusters = []
         for cluster in self.global_clusters[self.datapath].values():
