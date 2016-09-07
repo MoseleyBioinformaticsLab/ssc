@@ -1,0 +1,1 @@
+from ssc.ssc import SpinSystemCreator

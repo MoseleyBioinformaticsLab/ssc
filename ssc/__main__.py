@@ -9,6 +9,7 @@ Usage:
     ssc --version
     ssc group (--plpath=<path>) (--plformat=<format>) (--stype=<type>) (--dims=<labels>) (--rdims=<labels>) [--results=<path>] [--crspath=<path>]
     ssc group (--descrfile=<path>) [--results=<path>] [--crspath=<path>]
+    ssc group (--stdin) [--results=<path>] [--crspath=<path>]
 
 Options:
     -h, --help                   Show this screen.
@@ -22,8 +23,10 @@ Options:
     --results=<path>             Path where results will be saved.
     --crspath=<path>             Registration algorithm executable path [default: ssc/bin/calculate_registration]
     --descrfile=<path>           Get arguments from description file.
+    --stdin                      Get arguments from standard input.
 """
 
+import sys
 import json
 import docopt
 import ssc
@@ -32,9 +35,12 @@ import ssc
 def main(cmdargs):
 
     if cmdargs["group"]:
-        if cmdargs["--descrfile"]:
-            with open(cmdargs["--descrfile"], "r") as infile:
-                args = json.load(infile)
+        if cmdargs["--descrfile"] or cmdargs["--stdin"]:
+            if cmdargs["--descrfile"]:
+                with open(cmdargs["--descrfile"], "r") as infile:
+                    args = json.load(infile)
+            else:
+                args = json.loads(sys.stdin.read())
 
             sscreator = ssc.SpinSystemCreator(peaklistpath=args["PeakListPath"],
                                               plformat=args["PeakListFormat"],
@@ -61,6 +67,7 @@ main(args)
 
 
 # python3 ssc group --plpath=datasets/jr19_hncocacb.pks --plformat=autoassign --stype=HNcoCACB --dims=HN,N,CA/CB-1 --rdims=HN,N
-# python3 ssc.pyz group --plpath=datasets/jr19_hncocacb.pks --plformat=autoassign --stype=HNcoCACB --dims=HN,N,CA/CB-1 --rdims=HN,N
 
-# python3 ssc group --descrfile=ProblemDescriptionHNcoCACB_jr19.json
+# python3 ssc.pyz group --plpath=datasets/jr19_hncocacb.pks --plformat=autoassign --stype=HNcoCACB --dims=HN,N,CA/CB-1 --rdims=HN,N
+# python3 ssc.pyz group --descrfile=ProblemDescriptionHNcoCACB_jr19.json
+# more ProblemDescriptionHNcoCACB_jr19.json | python3 ssc.pyz group --stdin
