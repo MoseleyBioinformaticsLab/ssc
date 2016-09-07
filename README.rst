@@ -16,6 +16,7 @@ spin system).
        ssc --version
        ssc group (--plpath=<path>) (--plformat=<format>) (--stype=<type>) (--dims=<labels>) (--rdims=<labels>) [--results=<path>] [--crspath=<path>]
        ssc group (--descrfile=<path>) [--results=<path>] [--crspath=<path>]
+       ssc group (--stdin) [--results=<path>] [--crspath=<path>]
 
    Options:
        -h, --help                   Show this screen.
@@ -29,3 +30,4 @@ spin system).
        --results=<path>             Path where results will be saved.
        --crspath=<path>             Registration algorithm executable path [default: ssc/bin/calculate_registration]
        --descrfile=<path>           Get arguments from description file.
+       --stdin                      Get arguments from standard input.
