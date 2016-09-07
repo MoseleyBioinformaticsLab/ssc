@@ -13,6 +13,7 @@ import sys
 import os
 import datetime
 import json
+import tempfile
 
 import peaklistparsers as plp
 import physicalentities as pe
@@ -45,9 +46,10 @@ class SpinSystemCreator(object):
         self.plformat = plformat
         self.rootdims = rootdims
         self.regalgpath = os.path.normpath(regalgpath)
+        self.tempdir = tempfile.TemporaryDirectory()
 
         if outputdirpath is None or not outputdirpath:
-            self.outputdirpath = os.path.join(os.getcwd(),
+            self.outputdirpath = os.path.join(self.tempdir.name,
                                               "results",
                                               datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         else:
@@ -119,10 +121,10 @@ class SpinSystemCreator(object):
     def group(self, maxstep=10, maxregstep=2):
         """Group peaks from peak list into spin systems.
 
-        :param int maxstep: Maximum number of iterations to perform.
+        :param int maxstep: Maximum number of iterations grouping algorithm is allowed to run.
         :param int maxregstep: Maximum number of iterations registration algorithm is allowed to run.
-        :return:
-        :rtype:
+        :return: None
+        :rtype: None
         """
         peaklistpath = self.peaklistpath
         peaklist = self.parse(self.peaklistpath, self.spectrumtype, self.dimlabels, self.plformat)
@@ -132,6 +134,7 @@ class SpinSystemCreator(object):
         rdims = [label if label in self.rootdims else next(ids) for label in self.dimlabels]
         idims = [label if label in self.rootdims else next(ids) for label in self.dimlabels]
 
+        finalresultpath = ""
         initialreg_stds = {}
         registration_stds = {}
         previousrun_stds = {}
@@ -178,7 +181,6 @@ class SpinSystemCreator(object):
 
             dbc = grouping.DBSCAN(datapath=self.peaklistpath, minpts=2)
             dbc.dbscan(data=peaklist, stds=currentrun_stds)
-            dbc.print_clusters()
 
             with open(groupresultpath, "w") as outfile:
                 dbc.write(outfile)
@@ -192,7 +194,17 @@ class SpinSystemCreator(object):
                 peaklistpath = os.path.join(self.pl_dir, peaklistfname + str(istep) + ".json")
                 with open(peaklistpath, "w") as outfile:
                     peaklist.write(filehandle=outfile, plformat="json")
+
+            finalresultpath = groupresultpath
             istep += 1
+
+        with open(finalresultpath, "r") as infile:
+            grouping_result = json.load(infile)
+            grouping_result_str = json.dumps(grouping_result)
+            self.tempdir.cleanup()
+
+        print(grouping_result_str)
+        return grouping_result_str
 
     def _is_registered(self, regresult):
         """Check if a peak list can be registered initially, i.e. is suitable for

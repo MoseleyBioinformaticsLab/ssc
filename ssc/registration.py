@@ -29,7 +29,6 @@ def run_registration(execpath, inputlistpath, rootlistpath, regresultpath, *args
     results = {}
     numberpattern = re.compile("[+-]?\d+(\.\d+)?")
     cmdarguments = [execpath, inputlistpath, rootlistpath] + list(args)
-    print(cmdarguments)
     output = subprocess.check_output(cmdarguments)
     lines = output.decode("utf-8").splitlines()
 

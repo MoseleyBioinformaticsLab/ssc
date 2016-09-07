@@ -14,7 +14,6 @@ import json
 from math import sqrt
 
 from scipy.stats import chi2
-import numpy as np
 
 
 class Cluster(object):
@@ -30,10 +29,6 @@ class Cluster(object):
         self.label = label
         self.stds = stds
         self.members = []
-        self.x = []
-        self.y = []
-        self.desc = []
-        self.overlapped = False
 
     def add_member(self, member):
         """Add member into Cluster.
@@ -43,9 +38,6 @@ class Cluster(object):
         :return: None
         """
         self.members.append(member)
-        self.x.append(member[0].chemshift)
-        self.y.append(member[1].chemshift)
-        self.desc.append(member.assignment)
 
     def __contains__(self, member):
         """Test if member is inside members_list.
@@ -75,7 +67,6 @@ class DBSCAN(object):
     and standard deviations for comparable peak list dimensions in order to
     identify peaks that belong to the same spin system (clustered together).
     """
-
     global_clusters = {}
 
     def __init__(self, datapath, minpts):
@@ -108,7 +99,7 @@ class DBSCAN(object):
                 if len(region_pts) < self.minpts:
                     self.noise.add_member(point)
                 else:
-                    cluster = Cluster(label=str(self.count), stds=stds)
+                    cluster = Cluster(label=self.count, stds=stds)
                     self.count += 1
                     self.expand_cluster(point, region_pts, cluster, data, stds)
 
@@ -116,17 +107,18 @@ class DBSCAN(object):
         self.global_clusters[self.datapath][-1] = self.noise
         return self.clusters
 
-    def region_query(self, point, data, stds, prob=0.0001):
+    @staticmethod
+    def region_query(point, data, stds, prob=0.0001):
         """Find a region around point that satisfies given probability criteria.
         We are using chi square probability to decide if a point belongs to a
         region or not.
 
         :param point: Represents single peak within PeakList object.
-        :type point: :class:`~ssc.physicalentities.Peak`
         :param data: Represents PeakList object.
-        :type data: :class:`~ssc.physicalentities.PeakList`
-        :param dict stds: Stds used to group :class:`~ssc.physicalentities.Peak` into cluster.
+        :param dict stds: Stds used to group points into cluster.
         :param float prob: Probability.
+        :type point: :class:`~ssc.physicalentities.Peak`
+        :type data: :class:`~ssc.physicalentities.PeakList`
         :return: List of neighbor points.
         :rtype: list
         """
@@ -136,7 +128,7 @@ class DBSCAN(object):
 
         for otherpoint in data:
             dist = 0
-            for dimlabel, idx in zip(data.dimlabels, range(len(data.dimlabels))):
+            for idx, dimlabel, in enumerate(data.dimlabels):
                 if dimlabel in stds:
                     if stds[dimlabel] == 0:
                         stds[dimlabel] = 0.0000001
@@ -153,7 +145,7 @@ class DBSCAN(object):
         :param list neighbor_pts: List of neighbor points.
         :param cluster: Represents particular cluster of points.
         :param data: Represents PeakList object.
-        :type data: :class:`~ssc.physicalentities.PeakList`
+        :param dict stds: Stds used to group points into cluster.
         :type point: :class:`~ssc.physicalentities.Peak`
         :type cluster: :class:`~ssc.grouping.Cluster`
         :return: None
@@ -186,14 +178,8 @@ class DBSCAN(object):
         """Print clusters to the terminal.
         :return: None
         """
-        # for cluster in self.clusters.values():
-        #     print('Cluster #:', cluster.label)
-        #     for p in cluster.members:
-        #         print(p, p.assignment)
-        #     print('===================================================')
         json_str = self._to_json()
         print(json_str)
-
         return json_str
 
     def write(self, filehandle, outformat="json"):
@@ -205,7 +191,7 @@ class DBSCAN(object):
         :rtype: None
         """
         try:
-            if outformat is "json":
+            if outformat == "json":
                 json_str = self._to_json()
                 filehandle.write(json_str)
             else:
@@ -214,11 +200,10 @@ class DBSCAN(object):
         except IOError:
             raise IOError('"filehandle" parameter must be writable.')
 
-
     def _to_json(self):
         """Save list of clusters into JSON formatted string.
 
-        :return:
+        :return: List of clusters as JSON formatted string.
         :rtype: str
         """
         clusters = []
