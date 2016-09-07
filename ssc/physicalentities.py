@@ -4,24 +4,24 @@
 """
 physicalentities.py
 
-This module has classes to represent part of PhysicalEntities group, e.g.
+This module has classes to represent part of PhysicalEntities:
 'PeakList', 'Peak', 'Dimension', 'Resonance'.
 
 """
 
-import abc
 import json
+import pandas as pd
 
 
 class PeakList(list):
-    """Class representing experimental peak list."""
+    """Peak list container class."""
 
     formats = {"sparky": ".txt",
                "autoassign": ".pks",
                "json": ".json"}
 
     def __init__(self, filepath, spectrumtype, dimlabels, plformat):
-        """Initialization method.
+        """Peak list initializer.
 
         :param str filepath: Path to the peak list file.
         :param str spectrumtype: Type of the NMR experiment.
@@ -33,8 +33,6 @@ class PeakList(list):
         self.spectrumtype = spectrumtype
         self.dimlabels = dimlabels
         self.plformat = plformat
-
-        # self.notUsedPeaks = []
 
     @classmethod
     def fromlist(cls, peaks, spectrumtype, dimlabels, plformat):
@@ -49,35 +47,25 @@ class PeakList(list):
         """
         peaklist = cls(filepath=None, spectrumtype=spectrumtype, dimlabels=dimlabels, plformat=plformat)
         for peak in peaks:
-            peaklist.add_peak(peak)
+            peaklist.append(peak)
         return peaklist
 
-    def add_peak(self, peak):
-        """Add peak object into peak list object.
+    def write(self, filehandle, plformat):
+        """Save :class:`~ssc.physicalentities.PeakList` into file.
 
-        :param peak: Peak object.
-        :type peak: :class:`~ssc.physicalentities.Peak`
+        :param filehandle: Peak list file pointer.
+        :param str plformat: Peak list format.
         :return: None
         :rtype: None
         """
-        peak.owner(self)
-        super().append(peak)
-
-    def write(self, filehandle, plformat):
-        """Save :class:`~ssc.physicalentities.PeakList` data into file object.
-
-        :param filehandle:
-        :param plformat:
-        :return:
-        """
         try:
-            if plformat is "json":
+            if plformat == "json":
                 json_str = self._to_json()
                 filehandle.write(json_str)
-            elif plformat is "autoassign":
+            elif plformat == "autoassign":
                 autoassign_str = self._to_autoassign()
                 filehandle.write(autoassign_str)
-            elif plformat is "sparky":
+            elif plformat == "sparky":
                 sparky_str = self._to_sparky()
                 filehandle.write(sparky_str)
             else:
@@ -120,57 +108,89 @@ class PeakList(list):
         """
         peaklist = [{"Assignment": peak.assignmentslist,
                      "Dimensions": peak.chemshiftslist,
-                     "DataHeight": peak.extraattr} for peak in self]
+                     "DataHeight": peak.extra_attr} for peak in self]
         json_str = json.dumps(peaklist, sort_keys=False, indent=4)
         return json_str
 
+    @property
+    def peaklistdf(self):
+        """DataFrame representation of a peak list.
+
+        :return: DataFrame representation of a peak list.
+        :rtype: :class:`~pandas.DataFrame`
+        """
+        return pd.DataFrame([peak.chemshiftslist for peak in self], columns=self.dimlabels)
+
 
 class Peak(list):
-    """Peak class."""
+    """Peak container class."""
     
-    def __init__(self, assignment, labels, peakattr):
+    def __init__(self, labels, assignment, peak_attr, owner):
         """Peak initializer.
 
-        :param assignment:
-        :param labels:
-        :param peakattr:
+        :param list labels: List of dimension labels.
+        :param list assignment: List of dimension assignments.
+        :param list peak_attr: List of peak attributes.
+        :param :class:`~ssc.physicalentities.PeakList` owner: Peak list object where peak belongs.
         """
         super().__init__()
-        self.assignment = assignment
         self.labels = labels
-        self.peakAttr = peakattr
+        self.assignment = assignment
+        self.peak_attr = peak_attr
+        self.owner = owner
 
-        for dimension, label in zip(range(0, len(assignment)), labels):
-            super().append(Dimension(dimension + 1, label, assignment[dimension], peakattr[dimension]))
+        for idx, label in enumerate(labels):
+            super().append(Dimension(idx + 1, label, assignment[idx], peak_attr[idx]))
 
-        self.extraattr = peakattr[len(assignment):]
-
-    def owner(self, peakList=None):
-        """Method that sets the 'PeakList' object as owner of 'Peak' object."""
-        if peakList != None:
-            self.peakList = peakList
-        return self.peakList
+        self.extra_attr = peak_attr[len(assignment):]
 
     @property
     def chemshiftslist(self):
+        """List of chemical shifts.
+
+        :return: List of chemical shifts.
+        :rtype: list
+        """
         return [dim.chemshift for dim in self]
 
     @property
     def assignmentslist(self):
+        """List of assignments.
+
+        :return: List of assignments.
+        :rtype: list
+        """
         return [dim.assignment for dim in self]
+
+    @property
+    def chemshiftsdict(self):
+        """Dictionary of chemical shifts.
+
+        :return: Dictionary of label-chemical shift key-value pairs.
+        :rtype: dict
+        """
+        return {label: chemshift for label, chemshift in zip(self.labels, self.chemshiftslist)}
+
+    @property
+    def assignmentsdict(self):
+        """Dictionary of assignments.
+
+        :return: Dictionary of label-assignment key-value pairs.
+        :rtype: dict
+        """
+        return {label: assignment for label, assignment in zip(self.labels, self.assignmentslist)}
 
 
 class Dimension(object):
-    """Dimension class is used by Peak object to represent dimensions within a 
-    given peak."""
+    """Class that represents each dimension of a peak."""
 
     def __init__(self, dimid, label, assignment, chemshift):
         """Dimension initializer.
 
-        :param dimid:
-        :param label:
-        :param assignment:
-        :param chemshift:
+        :param int dimid: Dimension index.
+        :param str label: Dimension label.
+        :param str assignment: Dimension assignment.
+        :param float chemshift: Dimension chemical shift value.
         """
         self.dimid = dimid
         self.label = label
@@ -186,10 +206,19 @@ class Dimension(object):
         return self.assignment != '?' and self.assignment != ''
 
     def __str__(self):
-        """String representation of :class:`~ssc.physicalentities.Dimension`."""
-        return "{dimID}{dimAssignment}{chemShift}".format(**self.__dict__)
+        """String representation of dimension.
+
+        :return: String representation of dimension.
+        :rtype: str
+        """
+        return "{dimid}{assignment}{chemshift}".format(**self.__dict__)
 
     def __repr__(self):
+        """String representation of dimension.
+
+        :return: String representation of dimension.
+        :rtype: str
+        """
         return str(self.chemshift)
 
 
@@ -199,61 +228,30 @@ class Resonance(object):
         self.chemshift = chemshift
 
 
-class PeakListFilter(metaclass=abc.ABCMeta):
+class PeakListFilter(object):
 
-    def __init__(self, peakfilter):
-        self.peakfilter = peakfilter
+    @staticmethod
+    def filter(peaklist, filters):
+        """Apply multiple filters to a peak list.
 
-    @abc.abstractmethod
-    def filteredPeakList(self, peakList):
-        """Filter peaks from peak list
-
-        :param peakList: Peak list
-        :type peakList: sass.pe.PeakList
-        :return: Filetered peak list
-        :rtype: sass.pe.PeakList
+        :param peaklist: Peak list to be filtered.
+        :param dict filters: List of peak filters.
+        :type peaklist: :class:`~ssc.physicalentities.PeakList`
+        :return: Filtered peak list.
+        :rtype: :class:`~ssc.physicalentities.PeakList`
         """
-        raise NotImplementedError("Subclass must implement abstract method.")
+        peaks = list(filter(lambda peak: all(f(peak, f_param) for f, f_param in filters.items()), peaklist))
+        return PeakList.fromlist(peaks, peaklist.spectrumtype, peaklist.dimlabels, peaklist.plformat)
 
-class DimRangePeakListFilter(PeakListFilter):
+    @staticmethod
+    def peak_chemshift_filter(peak, dim_range):
+        """Filter peak(s) based on min and max chemical shift value for a given dimension.
 
-    def filteredPeakList(self, peakList):
-        """Filter peaks from peak list
+        :param peak: Single peak within peak list.
 
-        :param peakList: Peak list
-        :type peakList: sass.pe.PeakList
-        :return: Filetered peak list
-        :rtype: sass.pe.PeakList
-        """
-        notUsedPeaks = []
-
-        for peak in peakList:
-            withinRange = self.checkDimRange(peak)
-            if withinRange:
-                continue
-            elif not withinRange:
-                notUsedPeaks.append(peak)
-
-        for peak in notUsedPeaks:
-            if peak in peakList:
-                peakList.remove(peak)
-
-        return peakList
-
-    def checkDimRange(self, peak):
-        """Check if peak's comparable dimensions are within range
-
-        :param peak: Peak object
-        :type peak: sass.pe.Peak
-        :param dict filter: Dimension range filter
-        :return: If peak dimensions are within allowed dim range
+        :param dict dim_range: Dictionary specifying min and max values for dim label.
+        :return: If peak passes chemical shift filter (True) or not (False).
         :rtype: bool
         """
-        result = []
-        peak = [dim for dim in peak if dim.dimLabel in self.peakfilter]
-        for dim in peak:
-            if (self.peakfilter[dim.dimLabel]['min'] <= dim.chemShift <= self.peakfilter[dim.dimLabel]['max']):
-                result.append(True)
-            else:
-                result.append(False)
-        return all(result)
+        return all([dim_range[label]["min"] <= peak.chemshiftsdict[label] <= dim_range[label]["max"]
+                    for label in dim_range.keys() if label in peak.labels])

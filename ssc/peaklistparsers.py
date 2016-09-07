@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-ssc.peaklist_parsers
-~~~~~~~~~~~~~~~~~~~~~~
+ssc.peaklistparsers
+~~~~~~~~~~~~~~~~~~~
 
-This module has classes to parse NMR peak lists in different formats (e.g.
-Sparky, AutoAssign, JSON)
+This module has classes to parse NMR peak lists in different formats: Sparky, AutoAssign, JSON.
 """
+
 import abc
 import re
 import json
@@ -64,7 +64,7 @@ class SparkyPeakListParser(PeakListParser):
                     continue
 
                 assignment = re.split("[-]", peak_attr.pop(0))
-                peaklist.add_peak(pe.Peak(assignment, dimlabels, peak_attr))
+                peaklist.append(pe.Peak(dimlabels, assignment, peak_attr, peaklist))
         
         return peaklist
 
@@ -99,7 +99,7 @@ class AutoAssignPeakListParser(PeakListParser):
                 num_dims = len(peak)
                 assignment = ['?' for i in range(num_dims)]
                 peak = [float(dim) for dim in peak]
-                peaklist.add_peak(pe.Peak(assignment, dimlabels, peak))
+                peaklist.append(pe.Peak(dimlabels, assignment, peak, peaklist))
 
         return peaklist
 
@@ -109,7 +109,7 @@ class JSONPeakListParser(PeakListParser):
 
     @classmethod
     def parse(cls, filepath, spectrumtype, dimlabels, plformat):
-        """Parse peak list in autoassign format.
+        """Parse peak list in JSON format.
 
         :param str filepath: Path to the peak list file.
         :param str spectrumtype: Type of the NMR experiment.
@@ -123,6 +123,6 @@ class JSONPeakListParser(PeakListParser):
             peaklist = pe.PeakList(filepath, spectrumtype, dimlabels, plformat)
 
             for peak in data:
-                peaklist.add_peak(pe.Peak(peak["Assignment"], dimlabels, peak["Dimensions"]))
+                peaklist.append(pe.Peak(dimlabels, peak["Assignment"], peak["Dimensions"], peaklist))
 
         return peaklist
