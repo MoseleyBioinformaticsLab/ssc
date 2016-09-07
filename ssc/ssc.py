@@ -46,7 +46,7 @@ class SpinSystemCreator(object):
         self.rootdims = rootdims
         self.regalgpath = os.path.normpath(regalgpath)
 
-        if not outputdirpath:
+        if outputdirpath is None or not outputdirpath:
             self.outputdirpath = os.path.join(os.getcwd(),
                                               "results",
                                               datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
@@ -87,10 +87,14 @@ class SpinSystemCreator(object):
         elif plformat == "autoassign":
             peaklist = plp.AutoAssignPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
         elif plformat == "json":
-            pass
+            peaklist = plp.JSONPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
         else:
             raise TypeError('Unknown peak list format: "{}"'.format(plformat))
 
+        # pl = pe.PeakListFilter.filter(peaklist=peaklist, filters={pe.PeakListFilter.peak_chemshift_filter:
+        #                                                               {"CA": {"min":35, "max":75},
+        #                                                                "N": {"min":90, "max":140},
+        #                                                                "HN": {"min":0, "max":20}}})
         return peaklist
 
     @staticmethod
@@ -146,7 +150,6 @@ class SpinSystemCreator(object):
                 regresult = self.calculate_registration(self.regalgpath, peaklistpath, peaklistpath,
                                                         self.formats[peaklist.plformat], regresultpath,
                                                         rdims, idims)
-
             if istep == 0:
                 if not self._is_registered(regresult):
                     print("Peak list cannot be registered.")
@@ -181,8 +184,8 @@ class SpinSystemCreator(object):
                 dbc.write(outfile)
 
             previousrun_stds = dict(currentrun_stds)
+            unclustered_peaks = dbc.noise.members
 
-            unclustered_peaks = dbc.get_noise()
             if unclustered_peaks:
                 peaklist = pe.PeakList.fromlist(peaks=unclustered_peaks, spectrumtype=self.spectrumtype,
                                                 dimlabels=self.dimlabels, plformat="json")

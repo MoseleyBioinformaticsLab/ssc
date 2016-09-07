@@ -5,7 +5,7 @@
 ssc.registration
 ~~~~~~~~~~~~~~~~~~
 
-This module implements helper function that runs registration algorithm (C++ binary).
+This module implements helper function that runs registration algorithm.
 
 """
 
