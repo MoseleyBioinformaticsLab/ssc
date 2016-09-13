@@ -18,8 +18,9 @@ import physicalentities as pe
 class PeakListParser(metaclass=abc.ABCMeta):
     """Abstract PeakListParser class."""
 
+    @classmethod
     @abc.abstractmethod
-    def parse(self, filepath, spectrumtype, dimlabels, plformat):
+    def parse(cls, filepath, spectrumtype, dimlabels, plformat):
         """Parse peak list content.
 
         :param str filepath: Path to the peak list file.
@@ -28,6 +29,81 @@ class PeakListParser(metaclass=abc.ABCMeta):
         :param str plformat: Peak list format.
         """
         raise NotImplementedError("Subclass must implement abstract method.")
+
+    @classmethod
+    def write(cls, filehandle, peaklist, plformat):
+        """Write peak list into file.
+
+        :param filehandle: Peak list file pointer.
+        :type filehandle: :py:class:`io.TextIOWrapper`
+        :param peaklist: Peak list object.
+        :type peaklist: :class:`~ssc.physicalentities.PeakList`
+        :param str plformat: Peak list format.
+        :return: None
+        :rtype: None
+        """
+        try:
+            if plformat == "json":
+                json_str = cls._to_json(peaklist)
+                filehandle.write(json_str)
+            elif plformat == "autoassign":
+                autoassign_str = cls._to_autoassign(peaklist)
+                filehandle.write(autoassign_str)
+            elif plformat == "sparky":
+                sparky_str = cls._to_sparky(peaklist)
+                filehandle.write(sparky_str)
+            else:
+                filehandle.close()
+                raise TypeError("Unknown file format.")
+        except IOError:
+            raise IOError('"filehandle" parameter must be writable.')
+
+    @staticmethod
+    def _to_sparky(peaklist):
+        """Convert peak list into a Sparky formatted string.
+
+        :param peaklist: Peak list object.
+        :type peaklist: :class:`~ssc.physicalentities.PeakList`
+        :return: Sparky formatted string.
+        :rtype: str
+        """
+        sparky_str = "Assignment\t{}\n".format("".join(["w{}\t".format(i+1) for i in range(0, len(peaklist.dimlabels))]))
+        for peak in peaklist:
+            sparky_str += "-".join(peak.assignmentslist) + "\t" + "\t".join([str(cs) for cs in peak.chemshiftslist]) + \
+                          "\n"
+        return sparky_str
+
+    @staticmethod
+    def _to_autoassign(peaklist):
+        """Convert peak list into a AutoAssign formatted string.
+
+        :param peaklist: Peak list object.
+        :type peaklist: :class:`~ssc.physicalentities.PeakList`
+        :return: AutoAssign formatted string.
+        :rtype: str
+        """
+        autoassign_str = "Index\t{}Intensity\tWorkbook\n".format(
+            "".join(["{}Dim\t".format(i+1) for i in range(0, len(peaklist.dimlabels))]))
+
+        for index, peak in enumerate(peaklist):
+            autoassign_str += str(index+1) + "\t" + "\t".join([str(cs) for cs in peak.chemshiftslist]) + "\t0\t" + \
+                              peaklist.spectrumtype + "\n"
+        return autoassign_str
+
+    @staticmethod
+    def _to_json(peaklist):
+        """Convert peak list into a JSON formatted string.
+
+        :param peaklist: Peak list object.
+        :type peaklist: :class:`~ssc.physicalentities.PeakList`
+        :return: JSON formatted string.
+        :rtype: str
+        """
+        pl = [{"Assignment": peak.assignmentslist,
+               "Dimensions": peak.chemshiftslist,
+               "DataHeight": peak.extra_attr} for peak in peaklist]
+        json_str = json.dumps(pl, sort_keys=False, indent=4)
+        return json_str
 
 
 class SparkyPeakListParser(PeakListParser):
