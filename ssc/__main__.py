@@ -66,6 +66,7 @@ args = docopt.docopt(__doc__)
 main(args)
 
 
+
 # python3 ssc group --plpath=datasets/jr19_hncocacb.pks --plformat=autoassign --stype=HNcoCACB --dims=HN,N,CA/CB-1 --rdims=HN,N
 
 # python3 ssc.pyz group --plpath=datasets/jr19_hncocacb.pks --plformat=autoassign --stype=HNcoCACB --dims=HN,N,CA/CB-1 --rdims=HN,N

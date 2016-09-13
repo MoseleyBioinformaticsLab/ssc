@@ -46,9 +46,9 @@ class SpinSystemCreator(object):
         self.plformat = plformat
         self.rootdims = rootdims
         self.regalgpath = os.path.normpath(regalgpath)
-        self.tempdir = tempfile.TemporaryDirectory()
 
         if outputdirpath is None or not outputdirpath:
+            self.tempdir = tempfile.TemporaryDirectory()
             self.outputdirpath = os.path.join(self.tempdir.name,
                                               "results",
                                               datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
@@ -60,63 +60,6 @@ class SpinSystemCreator(object):
         self.group_result_dir = os.path.join(self.outputdirpath, "grouping_result")
         self.pl_dir = os.path.join(self.outputdirpath, "peaklists")
         self._makedirs(self.outputdirpath, self.reg_result_dir, self.group_result_dir, self.pl_dir)
-
-    @staticmethod
-    def _makedirs(*dirpath):
-        """Make directories using directory path.
-
-        :param str dirpath: Path to where make a directory.
-        :return: None
-        :rtype: None
-        """
-        for directory in dirpath:
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-
-    @staticmethod
-    def parse(peaklistpath, spectrumtype, dimlabels, plformat):
-        """Parse single peak list.
-
-        :param str peaklistpath: Path to the peak list file.
-        :param str spectrumtype: Type of the NMR experiment.
-        :param list dimlabels: List of dimension labels.
-        :param str plformat: Peak list format.
-        :return: Peak list.
-        :rtype: :class:`~ssc.physicalentities.PeakList`
-        """
-        if plformat == "sparky":
-            peaklist = plp.SparkyPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
-        elif plformat == "autoassign":
-            peaklist = plp.AutoAssignPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
-        elif plformat == "json":
-            peaklist = plp.JSONPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
-        else:
-            raise TypeError('Unknown peak list format: "{}"'.format(plformat))
-
-        # pl = pe.PeakListFilter.filter(peaklist=peaklist, filters={pe.PeakListFilter.peak_chemshift_filter:
-        #                                                               {"CA": {"min":35, "max":75},
-        #                                                                "N": {"min":90, "max":140},
-        #                                                                "HN": {"min":0, "max":20}}})
-        return peaklist
-
-    @staticmethod
-    def calculate_registration(regalgpath, inputlistpath, rootlistpath, plformat, regresultpath, rootdims, inputdims):
-        """Execute registration algorithm binary.
-
-        :param str inputlistpath: Path to input peak list.
-        :param str rootlistpath: Path to root peak list.
-        :param str plformat: Peak list format.
-        :param str regalgpath: Path to registration algorithm executable.
-        :param str regresultpath: Path where save registration results.
-        :param list inputdims: List of input peak list dimension labels.
-        :param list rootdims: List of root peak list dimension labels.
-        :return: Results dict.
-        :rtype: dict
-        """
-        # create command-line arguments for registration algorithm executable
-        args = [plformat] + ["-noi"] + ["-save", regresultpath] + ["-dim"] + inputdims + [":"] + rootdims
-        result = registration.run_registration(regalgpath, inputlistpath, rootlistpath, regresultpath, *args)
-        return result
 
     def group(self, maxstep=10, maxregstep=2):
         """Group peaks from peak list into spin systems.
@@ -143,8 +86,8 @@ class SpinSystemCreator(object):
         istep = 0
 
         for i in range(0, maxstep):
-            regresultpath = os.path.join(self.reg_result_dir, peaklistfname + str(istep) + ".json")
-            groupresultpath = os.path.join(self.group_result_dir, peaklistfname + str(istep) + ".json")
+            regresultpath = os.path.join(self.reg_result_dir, "{}_{}_{}".format(peaklistfname, istep, ".json"))
+            groupresultpath = os.path.join(self.group_result_dir, "{}_{}_{}".format(peaklistfname, istep, ".json"))
 
             if istep >= maxregstep:
                 usingreg = False
@@ -191,9 +134,9 @@ class SpinSystemCreator(object):
             if unclustered_peaks:
                 peaklist = pe.PeakList.fromlist(peaks=unclustered_peaks, spectrumtype=self.spectrumtype,
                                                 dimlabels=self.dimlabels, plformat="json")
-                peaklistpath = os.path.join(self.pl_dir, peaklistfname + str(istep) + ".json")
+                peaklistpath = os.path.join(self.pl_dir, "{}_{}_{}".format(peaklistfname, istep, ".json"))
                 with open(peaklistpath, "w") as outfile:
-                    peaklist.write(filehandle=outfile, plformat="json")
+                    plp.PeakListParser.write(filehandle=outfile, peaklist=peaklist, plformat="json")
 
             finalresultpath = groupresultpath
             istep += 1
@@ -205,6 +148,63 @@ class SpinSystemCreator(object):
 
         print(grouping_result_str)
         return grouping_result_str
+
+    @staticmethod
+    def _makedirs(*dirpath):
+        """Make directories using directory path.
+
+        :param str dirpath: Path to where make a directory.
+        :return: None
+        :rtype: None
+        """
+        for directory in dirpath:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+    @staticmethod
+    def parse(peaklistpath, spectrumtype, dimlabels, plformat):
+        """Parse single peak list.
+
+        :param str peaklistpath: Path to the peak list file.
+        :param str spectrumtype: Type of the NMR experiment.
+        :param list dimlabels: List of dimension labels.
+        :param str plformat: Peak list format.
+        :return: Peak list.
+        :rtype: :class:`~ssc.physicalentities.PeakList`
+        """
+        if plformat == "sparky":
+            peaklist = plp.SparkyPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
+        elif plformat == "autoassign":
+            peaklist = plp.AutoAssignPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
+        elif plformat == "json":
+            peaklist = plp.JSONPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
+        else:
+            raise TypeError('Unknown peak list format: "{}"'.format(plformat))
+
+        # pl = pe.PeakFilter.filterlist(peaklist=peaklist,
+        #                               filters=[pe.ChemShiftPeakFilter({"CA": {"min":35, "max":75}}),
+        #                                        pe.ChemShiftPeakFilter({"N": {"min":90, "max":140}}),
+        #                                        pe.ChemShiftPeakFilter({"HN": {"min": 0, "max": 20}})])
+        return peaklist
+
+    @staticmethod
+    def calculate_registration(regalgpath, inputlistpath, rootlistpath, plformat, regresultpath, rootdims, inputdims):
+        """Execute registration algorithm binary.
+
+        :param str inputlistpath: Path to input peak list.
+        :param str rootlistpath: Path to root peak list.
+        :param str plformat: Peak list format.
+        :param str regalgpath: Path to registration algorithm executable.
+        :param str regresultpath: Path where save registration results.
+        :param list inputdims: List of input peak list dimension labels.
+        :param list rootdims: List of root peak list dimension labels.
+        :return: Results dict.
+        :rtype: dict
+        """
+        # create command-line arguments for registration algorithm executable
+        args = [plformat] + ["-noi"] + ["-save", regresultpath] + ["-dim"] + inputdims + [":"] + rootdims
+        result = registration.run_registration(regalgpath, inputlistpath, rootlistpath, regresultpath, *args)
+        return result
 
     def _is_registered(self, regresult):
         """Check if a peak list can be registered initially, i.e. is suitable for
