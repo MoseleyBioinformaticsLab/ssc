@@ -9,215 +9,151 @@ This module provides :class:`~ssc.ssc.SpinSystemCreator` class that groups peaks
 a single peak list into spin systems.
 """
 
-import sys
 import os
-import datetime
 import json
-import tempfile
 
-import peaklistparsers as plp
-import physicalentities as pe
-import registration
-import grouping
+from . import peaklistparsers as plp
+from . import physicalentities as pe
+from . import registration
+from . import grouping
 
 
 class SpinSystemCreator(object):
-    """Perform internal peak list registration and internal grouping of a single peak list,
+    """Perform single peak list registration and single peak list  grouping,
     i.e. group peaks that belong to the same spin system into clusters."""
 
-    formats = {"sparky": "-sparky",
-               "autoassign": "-autoassign",
-               "json": "-json"}
+    def __init__(self, peaklist_path, plformat, spectrum_type, labels, root_dims, regalg_path, grouping_result_path=""):
+        """Initialize spin system creator.
 
-    def __init__(self, peaklistpath, plformat, spectrumtype, dimlabels, rootdims, regalgpath, outputdirpath=None):
-        """Initialize SpinSystemCreator.
-
-        :param str peaklistpath: Path to the peak list file.
-        :param str spectrumtype: Type of the NMR experiment.
-        :param list dimlabels: List of dimension labels.
-        :param list rootdims: List of root dimension labels.
+        :param str peaklist_path: Path to the peak list file.
+        :param str spectrum_type: Type of the NMR experiment.
+        :param list labels: List of dimension labels for a given peak list.
+        :param list root_dims: List of root dimension labels for a given peak list.
         :param str plformat: Peak list format.
-        :param str regalgpath: Path to registration algorithm executable.
-        :param str outputdirpath: Path to directory where save the results.
+        :param str regalg_path: Path to registration algorithm executable.
+        :param str grouping_result_path: Path to where save grouping algorithm results.
         """
-        self.peaklistpath = os.path.normpath(peaklistpath)
-        self.spectrumtype = spectrumtype
-        self.dimlabels = dimlabels
+        self.peaklist_path = os.path.normpath(peaklist_path)
+        self.spectrum_type = spectrum_type
+        self.labels = labels
+        self.root_dims = root_dims
         self.plformat = plformat
-        self.rootdims = rootdims
-        self.regalgpath = os.path.normpath(regalgpath)
+        self.regalg_path = os.path.normpath(regalg_path)
 
-        if outputdirpath is None or not outputdirpath:
-            self.tempdir = tempfile.TemporaryDirectory()
-            self.outputdirpath = os.path.join(self.tempdir.name,
-                                              "results",
-                                              datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+        peaklist_fname = os.path.basename(peaklist_path)
+        grouping_result_fname = peaklist_fname + "_grouping_result.json"
+
+        if not grouping_result_path:
+            self.grouping_result_path = os.path.join(os.path.dirname(self.peaklist_path), grouping_result_fname)
         else:
-            self.outputdirpath = os.path.join(os.path.normpath(outputdirpath),
-                                              "results",
-                                              datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-        self.reg_result_dir = os.path.join(self.outputdirpath, "registration_result")
-        self.group_result_dir = os.path.join(self.outputdirpath, "grouping_result")
-        self.pl_dir = os.path.join(self.outputdirpath, "peaklists")
-        self._makedirs(self.outputdirpath, self.reg_result_dir, self.group_result_dir, self.pl_dir)
+            if not os.path.exists(grouping_result_path):
+                os.mkdir(grouping_result_path)
 
-    def group(self, maxstep=10, maxregstep=2):
+            self.grouping_result_path = os.path.join(grouping_result_path, grouping_result_fname)
+
+    def group(self, max_step=10, max_reg_step=2, view=False):
         """Group peaks from peak list into spin systems.
 
-        :param int maxstep: Maximum number of iterations grouping algorithm is allowed to run.
-        :param int maxregstep: Maximum number of iterations registration algorithm is allowed to run.
-        :return: None
-        :rtype: None
+        :param int max_step: Maximum number of iterations grouping algorithm is allowed to run.
+        :param int max_reg_step: Maximum number of iterations registration algorithm is allowed to run.
+        :return: JSON string with final grouping results.
+        :rtype: :py:class:`str`
         """
-        peaklistpath = self.peaklistpath
-        peaklist = self.parse(self.peaklistpath, self.spectrumtype, self.dimlabels, self.plformat)
-        peaklistfname = os.path.basename(self.peaklistpath)
+        peaklist = plp.parse(self.peaklist_path, self.spectrum_type, self.labels, self.plformat)
+        peaklist_json_str = json.dumps(plp.PeakListParser.to_json(peaklist))
 
-        ids = (str(i) for i in range(1, 11))
-        rdims = [label if label in self.rootdims else next(ids) for label in self.dimlabels]
-        idims = [label if label in self.rootdims else next(ids) for label in self.dimlabels]
+        ids = (str(i) for i in range(100, 200))
+        rdims = [label if label in self.root_dims else next(ids) for label in self.labels]
+        idims = [label if label in self.root_dims else next(ids) for label in self.labels]
 
-        finalresultpath = ""
-        initialreg_stds = {}
+        initial_registration_stds = {}
         registration_stds = {}
-        previousrun_stds = {}
-        currentrun_stds = {}
-        usingreg = True
-        istep = 0
+        previous_run_stds = {}
+        current_run_stds = {}
+        using_registration = True
+        step = 0
 
-        for i in range(0, maxstep):
-            regresultpath = os.path.join(self.reg_result_dir, "{}_{}_{}".format(peaklistfname, istep, ".json"))
-            groupresultpath = os.path.join(self.group_result_dir, "{}_{}_{}".format(peaklistfname, istep, ".json"))
+        for i in range(0, max_step):
+            if step >= max_reg_step:
+                using_registration = False
 
-            if istep >= maxregstep:
-                usingreg = False
+            if using_registration:
+                regresult = self.calculate_registration(self.regalg_path, peaklist_json_str, peaklist_json_str, idims, rdims)
 
-            if usingreg:
-                regresult = self.calculate_registration(self.regalgpath, peaklistpath, peaklistpath,
-                                                        self.formats[peaklist.plformat], regresultpath,
-                                                        rdims, idims)
-            if istep == 0:
+            if step == 0:
                 if not self._is_registered(regresult):
                     print("Peak list cannot be registered.")
                     break
                 else:
-                    initialreg_stds.update(regresult["FullSTD"])
-                    previousrun_stds = dict(initialreg_stds)
-                    registration_stds = {dimlabel: [] for dimlabel in initialreg_stds.keys()}
+                    initial_registration_stds.update(regresult["FullSTD"])
+                    previous_run_stds = dict(initial_registration_stds)
+                    registration_stds = {label: [] for label in initial_registration_stds.keys()}
 
-            if regresult and usingreg:
+            if regresult and using_registration:
                 peaklist_stds = regresult["FullSTD"]
                 for dimlabel, std in peaklist_stds.items():
                     registration_stds[dimlabel].append(std)
 
                 # do not let stds drop between iterations
-                currentrun_stds = {dimlabel: max([previousrun_stds[dimlabel], peaklist_stds[dimlabel]])
-                                   for dimlabel in previousrun_stds.keys()}
+                current_run_stds = {label: max([previous_run_stds[label], peaklist_stds[label]]) for label in previous_run_stds.keys()}
 
-            else:  # (not regresult) or (regresult and not usingreg)
-                usingreg = False
-                currentrun_stds = {dimlabel: std+min(filter(None, registration_stds[dimlabel]))
-                                   for dimlabel, std in currentrun_stds.items()}
+            else:
+                using_registration = False
+                current_run_stds = {label: std+min(filter(None, registration_stds[label])) for label, std in current_run_stds.items()}
 
-            if not self._is_stds_within_range(currentrun_stds):
+            if not self._is_stds_within_range(current_run_stds):
                 break
 
-            dbc = grouping.DBSCAN(datapath=self.peaklistpath, minpts=2)
-            dbc.dbscan(data=peaklist, stds=currentrun_stds)
-
-            with open(groupresultpath, "w") as outfile:
-                dbc.write(outfile)
-
-            previousrun_stds = dict(currentrun_stds)
+            dbc = grouping.DBSCAN(data_path=self.peaklist_path, min_pts=2)
+            dbc.dbscan(data=peaklist, stds=current_run_stds)
+            previous_run_stds = dict(current_run_stds)
             unclustered_peaks = dbc.noise.members
 
-            if unclustered_peaks:
-                peaklist = pe.PeakList.fromlist(peaks=unclustered_peaks, spectrumtype=self.spectrumtype,
-                                                dimlabels=self.dimlabels, plformat="json")
-                peaklistpath = os.path.join(self.pl_dir, "{}_{}_{}".format(peaklistfname, istep, ".json"))
-                with open(peaklistpath, "w") as outfile:
-                    plp.PeakListParser.write(filehandle=outfile, peaklist=peaklist, plformat="json")
+            if unclustered_peaks:  # try to group until we still have unclustered peaks
+                peaklist = pe.PeakList.fromlist(peaks=unclustered_peaks, spectrum_type=self.spectrum_type, labels=self.labels, plformat="json")
+                peaklist_json_str = json.dumps(plp.PeakListParser.to_json(peaklist))
+                step += 1
+            else:
+                break  # no peaks left to group
 
-            finalresultpath = groupresultpath
-            istep += 1
+        with open(self.grouping_result_path, "w") as outfile:
+            grouping_result_str = dbc.to_json()
+            outfile.write(grouping_result_str)
 
-        with open(finalresultpath, "r") as infile:
-            grouping_result = json.load(infile)
-            grouping_result_str = json.dumps(grouping_result)
-            self.tempdir.cleanup()
+        if view:
+            print(grouping_result_str)
 
-        print(grouping_result_str)
         return grouping_result_str
 
     @staticmethod
-    def _makedirs(*dirpath):
-        """Make directories using directory path.
-
-        :param str dirpath: Path to where make a directory.
-        :return: None
-        :rtype: None
-        """
-        for directory in dirpath:
-            if not os.path.exists(directory):
-                os.makedirs(directory)
-
-    @staticmethod
-    def parse(peaklistpath, spectrumtype, dimlabels, plformat):
-        """Parse single peak list.
-
-        :param str peaklistpath: Path to the peak list file.
-        :param str spectrumtype: Type of the NMR experiment.
-        :param list dimlabels: List of dimension labels.
-        :param str plformat: Peak list format.
-        :return: Peak list.
-        :rtype: :class:`~ssc.physicalentities.PeakList`
-        """
-        if plformat == "sparky":
-            peaklist = plp.SparkyPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
-        elif plformat == "autoassign":
-            peaklist = plp.AutoAssignPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
-        elif plformat == "json":
-            peaklist = plp.JSONPeakListParser.parse(peaklistpath, spectrumtype, dimlabels, plformat)
-        else:
-            raise TypeError('Unknown peak list format: "{}"'.format(plformat))
-
-        # pl = pe.PeakFilter.filterlist(peaklist=peaklist,
-        #                               filters=[pe.ChemShiftPeakFilter({"CA": {"min":35, "max":75}}),
-        #                                        pe.ChemShiftPeakFilter({"N": {"min":90, "max":140}}),
-        #                                        pe.ChemShiftPeakFilter({"HN": {"min": 0, "max": 20}})])
-        return peaklist
-
-    @staticmethod
-    def calculate_registration(regalgpath, inputlistpath, rootlistpath, plformat, regresultpath, rootdims, inputdims):
+    def calculate_registration(regalg_path, input_peaklist, root_peaklist, input_dims, root_dims):
         """Execute registration algorithm binary.
 
-        :param str inputlistpath: Path to input peak list.
-        :param str rootlistpath: Path to root peak list.
-        :param str plformat: Peak list format.
-        :param str regalgpath: Path to registration algorithm executable.
-        :param str regresultpath: Path where save registration results.
-        :param list inputdims: List of input peak list dimension labels.
-        :param list rootdims: List of root peak list dimension labels.
-        :return: Results dict.
-        :rtype: dict
+        :param str input_peaklist: Path to input peak list.
+        :param str root_peaklist: Path to root peak list.
+        :param str regalg_path: Path to registration algorithm executable.
+        :param list input_dims: List of input peak list dimension labels.
+        :param list root_dims: List of root peak list dimension labels.
+        :return: Dictionary containing registration results.
+        :rtype: :py:class:`dict`
         """
         # create command-line arguments for registration algorithm executable
-        args = [plformat] + ["-noi"] + ["-save", regresultpath] + ["-dim"] + inputdims + [":"] + rootdims
-        result = registration.run_registration(regalgpath, inputlistpath, rootlistpath, regresultpath, *args)
+        args = ["--noi"] + ["--dim"] + input_dims + [":"] + root_dims
+        result = registration.run_registration(regalg_path, input_peaklist, root_peaklist, *args)
         return result
 
-    def _is_registered(self, regresult):
+    def _is_registered(self, registration_result):
         """Check if a peak list can be registered initially, i.e. is suitable for
         grouping into spin systems.
 
-        :param dict regresult: Result of the first run of registration algorithm.
+        :param dict registration_result: Result of the first run of the registration algorithm.
         :return: Peak list registered (True) or not registered (False).
-        :rtype: bool
+        :rtype: :py:obj:`True` or :py:obj:`False`
         """
-        if not regresult:
+        if not registration_result:
             return False
         else:
-            stds = regresult["FullSTD"]
+            stds = registration_result["FullSTD"]
             if not self._is_stds_within_range(stds):
                 return False
         return True
@@ -229,42 +165,8 @@ class SpinSystemCreator(object):
 
         :param dict stds: Dictionary of stds for each dimension.
         :return: All dimension stds are valid (True) or not (False).
-        :rtype: bool
+        :rtype: :py:obj:`True` or :py:obj:`False`
         """
         if any([True for std in stds.values() if std >= cutoff]):
             return False
         return True
-
-    @staticmethod
-    def _load_json(filepath):
-        """Load JSON file from a given file path.
-
-        :param str filepath: Path to JSON file.
-        :return: Dictionary represenation of JSON file.
-        :rtype: dict
-        """
-        try:
-            with open(filepath, "r") as infile:
-                data = json.load(infile)
-            return data
-        except ValueError:
-            raise ValueError('"{}" is not a valid JSON file.'.format(filepath))
-
-if __name__ == "__main__":
-    # python3 ssc.py ../datasets/jr19_hncocacb.pks
-
-    script = sys.argv.pop(0)
-    plpath = sys.argv.pop(0)
-    stype = "HNcoCACB"
-    labels = ["HN", "N", "CA/CB-1"]
-    plfmt = "autoassign"
-    rdims = ["HN", "N"]
-    crspath = "./bin/calculate_registration"
-
-    css = SpinSystemCreator(peaklistpath=plpath,
-                            plformat=plfmt,
-                            spectrumtype=stype,
-                            dimlabels=labels,
-                            rootdims=rdims,
-                            regalgpath=crspath)
-    css.group()
