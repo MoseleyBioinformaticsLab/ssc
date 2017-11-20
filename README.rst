@@ -1,33 +1,39 @@
 ssc
 ===
 
-Spin System Creator (ssc)
+The `ssc` (Spin System Creator) package provides facilitates for grouping peaks that belong to the
+same spin system into spin system clusters within a single peak list.
 
-This package provides `SpinSystemCreator` class that groups peaks from
-a single peak list into clusters (groups of peaks that belong to the same
-spin system).
+Requirements
+~~~~~~~~~~~~
 
-.. code:: bash
+   * Python 3.4+
+   * gcc 5.1+
 
-   ssc (Spin System Creator) command-line interface
+Dependencies
+~~~~~~~~~~~~
 
-   Usage:
-       ssc -h | --help
-       ssc --version
-       ssc group (--plpath=<path>) (--plformat=<format>) (--stype=<type>) (--dims=<labels>) (--rdims=<labels>) [--results=<path>] [--crspath=<path>]
-       ssc group (--descrfile=<path>) [--results=<path>] [--crspath=<path>]
-       ssc group (--stdin) [--results=<path>] [--crspath=<path>]
+   * scipy_
+   * pandas_
+   * bokeh_
 
-   Options:
-       -h, --help                   Show this screen.
-       --version                    Show version.
-       --verbose                    Print what files are processing.
-       --plpath=<path>              Path to peak list.
-       --plformat=<format>          Peak list format.
-       --stype=<type>               Spectrum type.
-       --dims=<labels>              Comma-separated dimension labels.
-       --rdims=<labels>             Comma-separated root dimension labels.
-       --results=<path>             Path where results will be saved.
-       --crspath=<path>             Registration algorithm executable path [default: ssc/bin/calculate_registration]
-       --descrfile=<path>           Get arguments from description file.
-       --stdin                      Get arguments from standard input.
+.. _scipy: https://www.scipy.org/
+.. _pandas: http://pandas.pydata.org/
+.. _bokeh: http://bokeh.pydata.org/en/latest/
+
+
+To test `ssc` package
+~~~~~~~~~~~~~~~~~~~~~
+
+   * Extract from tarball and cd into directory:
+
+   .. code:: bash
+
+      $ tar -xvf ssc-0.1.0.tar.gx
+      $ cd ssc-0.1.0
+
+   * Install dependencies:
+
+   .. code:: bash
+
+      $ python3 -m pip install -r requirements.txt
