@@ -60,7 +60,7 @@ Clone or download ssc repository
 Build docker image using Dockerfile
 -----------------------------------
 
-* Go to project root and execute the following command:
+* Go to project root (directory where `Dockerfile` is located) and execute the following command:
 
 .. code:: bash
 
