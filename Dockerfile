@@ -3,7 +3,7 @@ FROM ubuntu:16.04
 MAINTAINER	Andrey Smelter
 
 # Copy ssc code to the root directory and set working directory
-COPY ssc /ssc
+COPY . /ssc/
 WORKDIR /ssc
 
 # Install gcc and python
