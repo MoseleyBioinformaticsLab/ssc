@@ -48,6 +48,12 @@ Install docker
 --------------
 
 * Follow instructions to install docker for your system: https://docs.docker.com/engine/installation
+   * Ubuntu: https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/
+   * Debian: https://docs.docker.com/engine/installation/linux/docker-ce/debian/
+   * CentOS: https://docs.docker.com/engine/installation/linux/docker-ce/centos/
+   * Fedora: https://docs.docker.com/engine/installation/linux/docker-ce/fedora/
+   * Mac: https://docs.docker.com/docker-for-mac/install/
+   * Windows: https://docs.docker.com/docker-for-windows/install/
 * Enable docker service.
 
 
