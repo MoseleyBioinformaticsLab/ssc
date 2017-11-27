@@ -29,7 +29,7 @@ To test `ssc` package
 
    .. code:: bash
 
-      $ tar -xvf ssc-0.1.0.tar.gx
+      $ tar -xvf ssc-0.1.0.tar.gz
       $ cd ssc-0.1.0
 
    * Install dependencies:
