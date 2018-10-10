@@ -15,5 +15,8 @@ RUN apt-get install python3-pip -y
 # Install ssc python requirements
 RUN pip3 install -r /ssc/requirements.txt
 
+# Change registration algorithm executable permissions
+RUN chmod a+x /ssc/bin/CRS_EXE
+
 # Set entry point
 ENTRYPOINT [ "python3", "-m", "ssc" ]
